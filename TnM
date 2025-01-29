@@ -4,7 +4,7 @@ Sub GenerateWorkLog()
     Dim startDate As Date, endDate As Date
     Dim currentDate As Date, weekNum As Integer
     Dim rowCounter As Integer, i As Integer
-    Dim timeStart As Date, timeStop As Date
+    Dim timeStart As Date, timeStop As Date, timeSpent As Double
     Dim workType As String
 
     ' Define sheets
@@ -46,17 +46,28 @@ Sub GenerateWorkLog()
             ' Generate 5 tasks per day
             For i = 1 To 5
                 workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1) ' Random work type
-                timeStart = TimeValue("15:00:00") + Rnd() * (TimeValue("23:00:00") - TimeValue("15:00:00")) ' Random start time
-                timeStop = timeStart + TimeValue("00:" & Application.WorksheetFunction.RandBetween(30, 180) & ":00") ' Random duration
                 
+                ' Generate random start time (between 3 PM and 12 AM)
+                timeStart = TimeValue("15:00:00") + Rnd() * (TimeValue("23:00:00") - TimeValue("15:00:00"))
+                
+                ' Generate random work duration (30 to 180 minutes)
+                Dim duration As Double
+                duration = Application.WorksheetFunction.RandBetween(30, 180) / 1440 ' Convert minutes to fraction of a day
+
+                ' Calculate stop time
+                timeStop = timeStart + duration
+
+                ' Ensure accurate time spent calculation
+                timeSpent = timeStop - timeStart
+
                 ' Fill row
                 ws.Cells(rowCounter, 1).Value = weekNum
                 ws.Cells(rowCounter, 2).Value = currentDate
                 ws.Cells(rowCounter, 3).Value = workType
                 ws.Cells(rowCounter, 4).Value = "Ongoing" ' Default status
-                ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm AM/PM")
-                ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm AM/PM")
-                ws.Cells(rowCounter, 7).Value = Format(timeStop - timeStart, "[h]:mm")
+                ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
+                ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
+                ws.Cells(rowCounter, 7).Value = Format(timeSpent, "[h]:mm:ss")
                 
                 rowCounter = rowCounter + 1
             Next i
@@ -64,7 +75,11 @@ Sub GenerateWorkLog()
         currentDate = currentDate + 1
     Loop
 
-    ' Format columns
+    ' Format time columns to hh:mm:ss
+    ws.Columns("E:G").NumberFormat = "hh:mm:ss"
+
+    ' Autofit columns
     ws.Columns("A:G").AutoFit
+    
     MsgBox "Work log generated for " & monthYear & "!", vbInformation, "Success"
 End Sub
