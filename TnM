@@ -1,0 +1,70 @@
+Sub GenerateWorkLog()
+    Dim ws As Worksheet, workTypeSheet As Worksheet
+    Dim workTypes As Variant
+    Dim startDate As Date, endDate As Date
+    Dim currentDate As Date, weekNum As Integer
+    Dim rowCounter As Integer, i As Integer
+    Dim timeStart As Date, timeStop As Date
+    Dim workType As String
+
+    ' Define sheets
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets("WorkLog")
+    Set workTypeSheet = ThisWorkbook.Sheets("WorkTypes")
+    On Error GoTo 0
+
+    ' If WorkLog sheet doesn't exist, create it
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Sheets.Add
+        ws.Name = "WorkLog"
+    Else
+        ws.Cells.Clear ' Clear old data
+    End If
+    
+    ' Get work types from WorkTypes sheet
+    workTypes = workTypeSheet.Range("A1:A" & workTypeSheet.Cells(Rows.Count, 1).End(xlUp).Row).Value
+    
+    ' Ask for the month and year
+    Dim monthYear As String
+    monthYear = InputBox("Enter the month and year (MM/YYYY):", "Select Month", Format(Date, "MM/YYYY"))
+    If monthYear = "" Then Exit Sub ' Exit if canceled
+    
+    ' Get start and end date for the selected month
+    startDate = DateValue("1/" & monthYear)
+    endDate = DateAdd("m", 1, startDate) - 1
+
+    ' Add headers
+    ws.Range("A1:G1").Value = Array("Week", "Date", "Work Description", "Status", "Time Start", "Time Stop", "Time Spent")
+    rowCounter = 2
+
+    ' Loop through the month (5 days a week)
+    currentDate = startDate
+    Do While currentDate <= endDate
+        If Weekday(currentDate, vbMonday) <= 5 Then ' Only Monday to Friday
+            weekNum = Application.WorksheetFunction.RoundUp(Day(currentDate) / 7, 0) ' Calculate week number
+            
+            ' Generate 5 tasks per day
+            For i = 1 To 5
+                workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1) ' Random work type
+                timeStart = TimeValue("15:00:00") + Rnd() * (TimeValue("23:00:00") - TimeValue("15:00:00")) ' Random start time
+                timeStop = timeStart + TimeValue("00:" & Application.WorksheetFunction.RandBetween(30, 180) & ":00") ' Random duration
+                
+                ' Fill row
+                ws.Cells(rowCounter, 1).Value = weekNum
+                ws.Cells(rowCounter, 2).Value = currentDate
+                ws.Cells(rowCounter, 3).Value = workType
+                ws.Cells(rowCounter, 4).Value = "Ongoing" ' Default status
+                ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm AM/PM")
+                ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm AM/PM")
+                ws.Cells(rowCounter, 7).Value = Format(timeStop - timeStart, "[h]:mm")
+                
+                rowCounter = rowCounter + 1
+            Next i
+        End If
+        currentDate = currentDate + 1
+    Loop
+
+    ' Format columns
+    ws.Columns("A:G").AutoFit
+    MsgBox "Work log generated for " & monthYear & "!", vbInformation, "Success"
+End Sub
