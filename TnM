@@ -6,6 +6,8 @@ Sub GenerateWorkLog()
     Dim rowCounter As Integer, i As Integer
     Dim timeStart As Date, timeStop As Date, timeSpent As Double
     Dim workType As String
+    Dim startHour As Integer, startMinute As Integer, startSecond As Integer
+    Dim duration As Double
 
     ' Define sheets
     On Error Resume Next
@@ -47,16 +49,18 @@ Sub GenerateWorkLog()
             For i = 1 To 5
                 workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1) ' Random work type
                 
-                ' Generate random start time (between 3 PM and 12 AM)
-                timeStart = TimeValue("15:00:00") + Rnd() * (TimeValue("23:00:00") - TimeValue("15:00:00"))
-                
-                ' Generate random work duration (30 to 180 minutes)
-                Dim duration As Double
-                duration = Application.WorksheetFunction.RandBetween(30, 180) / 1440 ' Convert minutes to fraction of a day
+                ' Generate random start time (3 PM - 12 AM) with random seconds
+                startHour = 15 + Int(Rnd() * 9) ' Random hour between 15 (3 PM) and 23 (11 PM)
+                startMinute = Int(Rnd() * 60) ' Random minute between 0 and 59
+                startSecond = Int(Rnd() * 60) ' Random second between 0 and 59
+                timeStart = TimeSerial(startHour, startMinute, startSecond)
 
+                ' Generate random work duration (30 to 180 minutes)
+                duration = Application.WorksheetFunction.RandBetween(30, 180) / 1440 ' Convert minutes to fraction of a day
+                
                 ' Calculate stop time
                 timeStop = timeStart + duration
-
+                
                 ' Ensure accurate time spent calculation
                 timeSpent = timeStop - timeStart
 
