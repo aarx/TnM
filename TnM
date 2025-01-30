@@ -68,7 +68,7 @@ Sub GenerateWorkLog()
                 Dim timeStart As Date, timeStop As Date, duration As Double
                 
                 workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
-                timeStart = GetAvailableTime(usedTimes, attemptCount)
+                timeStart = GetAvailableTime(usedTimes, remainingTime)
                 duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
                 timeStop = timeStart + duration
                 
@@ -125,7 +125,7 @@ Sub AddFixedTask(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Intege
 End Sub
 
 ' Function to get available random time slot
-Function GetAvailableTime(usedTimes As Object, attemptCount As Integer) As Date
+Function GetAvailableTime(usedTimes As Object, remainingTime As Double) As Date
     Dim timeStart As Date
     Dim randomHour As Integer, randomMinute As Integer, randomSecond As Integer
     Dim formattedTime As String
@@ -137,9 +137,8 @@ Function GetAvailableTime(usedTimes As Object, attemptCount As Integer) As Date
         timeStart = TimeSerial(randomHour, randomMinute, randomSecond)
         formattedTime = Format(timeStart, "hh:mm:ss AM/PM")
         
-        attemptCount = attemptCount + 1
-        If attemptCount > 20 Then Exit Do ' Prevent infinite loop
-    Loop While usedTimes.exists(formattedTime)
+        If Not usedTimes.exists(formattedTime) And timeStart + (remainingTime * 24) <= TimeValue("12:00:00 AM") Then Exit Do
+    Loop
     
     GetAvailableTime = timeStart
 End Function
