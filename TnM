@@ -4,10 +4,8 @@ Sub GenerateWorkLog()
     Dim startDate As Date, endDate As Date
     Dim currentDate As Date, weekNum As Integer
     Dim rowCounter As Integer
-    Dim totalWorkTime As Double
-    Dim remainingTime As Double
     Dim usedTimes As Object
-    Dim attemptCount As Integer
+    Dim totalWorkTime As Double, remainingTime As Double
     
     ' Define sheets
     On Error Resume Next
@@ -60,37 +58,7 @@ Sub GenerateWorkLog()
             remainingTime = (8 / 24) - totalWorkTime ' Convert 8 hours to fraction of a day
             
             ' Generate random tasks until total time reaches 8 hours
-            attemptCount = 0
-            Do While remainingTime > 0 And attemptCount < 20 ' Limit retries to 20
-                If UBound(workTypes, 1) < 1 Then Exit Do ' Ensure workTypes is not empty
-                
-                Dim workType As String
-                Dim timeStart As Date, timeStop As Date, duration As Double
-                
-                workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
-                timeStart = GetAvailableTime(usedTimes, remainingTime)
-                duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
-                timeStop = timeStart + duration
-                
-                ' Ensure stop time is within working hours
-                If timeStop <= TimeValue("12:00:00 AM") Then
-                    usedTimes.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
-                    
-                    ' Fill row
-                    ws.Cells(rowCounter, 1).Value = weekNum
-                    ws.Cells(rowCounter, 2).Value = currentDate
-                    ws.Cells(rowCounter, 3).Value = workType
-                    ws.Cells(rowCounter, 4).Value = "Ongoing"
-                    ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
-                    ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
-                    ws.Cells(rowCounter, 7).Value = Format(timeStop - timeStart, "[h]:mm:ss")
-                    
-                    rowCounter = rowCounter + 1
-                    remainingTime = remainingTime - duration
-                End If
-                
-                attemptCount = attemptCount + 1 ' Prevent infinite loop
-            Loop
+            Call FillRemainingTasks(ws, rowCounter, weekNum, currentDate, workTypes, usedTimes, remainingTime)
         End If
         currentDate = currentDate + 1
     Loop
@@ -124,21 +92,49 @@ Sub AddFixedTask(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Intege
     rowCounter = rowCounter + 1
 End Sub
 
+' Subroutine to fill remaining tasks
+Sub FillRemainingTasks(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Integer, currentDate As Date, workTypes As Variant, usedTimes As Object, remainingTime As Double)
+    Dim timeStart As Date, timeStop As Date, duration As Double
+    Dim workType As String
+    Dim formattedTime As String
+
+    ' Ensure workTypes is not empty
+    If UBound(workTypes, 1) < 1 Then Exit Sub
+
+    Do While remainingTime > 0
+        workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
+        timeStart = GetAvailableTime(usedTimes)
+        duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
+        timeStop = timeStart + duration
+        
+        ' Ensure stop time is within working hours
+        If timeStop <= TimeValue("12:00:00 AM") Then
+            usedTimes.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
+            
+            ' Fill row
+            ws.Cells(rowCounter, 1).Value = weekNum
+            ws.Cells(rowCounter, 2).Value = currentDate
+            ws.Cells(rowCounter, 3).Value = workType
+            ws.Cells(rowCounter, 4).Value = "Ongoing"
+            ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
+            ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
+            ws.Cells(rowCounter, 7).Value = Format(timeStop - timeStart, "[h]:mm:ss")
+            
+            rowCounter = rowCounter + 1
+            remainingTime = remainingTime - duration
+        End If
+    Loop
+End Sub
+
 ' Function to get available random time slot
-Function GetAvailableTime(usedTimes As Object, remainingTime As Double) As Date
+Function GetAvailableTime(usedTimes As Object) As Date
     Dim timeStart As Date
-    Dim randomHour As Integer, randomMinute As Integer, randomSecond As Integer
     Dim formattedTime As String
     
     Do
-        randomHour = 15 + Int(Rnd() * 9) ' Between 3 PM and 11 PM
-        randomMinute = Int(Rnd() * 60)
-        randomSecond = Int(Rnd() * 60)
-        timeStart = TimeSerial(randomHour, randomMinute, randomSecond)
+        timeStart = TimeSerial(15 + Int(Rnd() * 9), Int(Rnd() * 60), Int(Rnd() * 60)) ' Random between 3 PM and 11 PM
         formattedTime = Format(timeStart, "hh:mm:ss AM/PM")
-        
-        If Not usedTimes.exists(formattedTime) And timeStart + (remainingTime * 24) <= TimeValue("12:00:00 AM") Then Exit Do
-    Loop
+    Loop Until Not usedTimes.exists(formattedTime)
     
     GetAvailableTime = timeStart
 End Function
