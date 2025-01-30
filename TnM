@@ -3,15 +3,12 @@ Sub GenerateWorkLog()
     Dim workTypes As Variant
     Dim startDate As Date, endDate As Date
     Dim currentDate As Date, weekNum As Integer
-    Dim rowCounter As Integer, i As Integer
-    Dim timeStart As Date, timeStop As Date, timeSpent As Double
-    Dim workType As String
-    Dim duration As Double
+    Dim rowCounter As Integer
     Dim totalWorkTime As Double
     Dim remainingTime As Double
     Dim usedTimes As Object
     Dim attemptCount As Integer
-
+    
     ' Define sheets
     On Error Resume Next
     Set ws = ThisWorkbook.Sheets("WorkLog")
@@ -65,6 +62,11 @@ Sub GenerateWorkLog()
             ' Generate random tasks until total time reaches 8 hours
             attemptCount = 0
             Do While remainingTime > 0 And attemptCount < 20 ' Limit retries to 20
+                If UBound(workTypes, 1) < 1 Then Exit Do ' Ensure workTypes is not empty
+                
+                Dim workType As String
+                Dim timeStart As Date, timeStop As Date, duration As Double
+                
                 workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
                 timeStart = GetAvailableTime(usedTimes, attemptCount)
                 duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
