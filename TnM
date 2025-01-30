@@ -10,7 +10,8 @@ Sub GenerateWorkLog()
     Dim totalWorkTime As Double
     Dim remainingTime As Double
     Dim usedTimes As Object
-    
+    Dim attemptCount As Integer
+
     ' Define sheets
     On Error Resume Next
     Set ws = ThisWorkbook.Sheets("WorkLog")
@@ -62,12 +63,14 @@ Sub GenerateWorkLog()
             remainingTime = (8 / 24) - totalWorkTime ' Convert 8 hours to fraction of a day
             
             ' Generate random tasks until total time reaches 8 hours
-            Do While remainingTime > 0
+            attemptCount = 0
+            Do While remainingTime > 0 And attemptCount < 20 ' Limit retries to 20
                 workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
-                timeStart = GetAvailableTime(usedTimes)
+                timeStart = GetAvailableTime(usedTimes, attemptCount)
                 duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
                 timeStop = timeStart + duration
                 
+                ' Ensure stop time is within working hours
                 If timeStop <= TimeValue("12:00:00 AM") Then
                     usedTimes.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
                     
@@ -83,6 +86,8 @@ Sub GenerateWorkLog()
                     rowCounter = rowCounter + 1
                     remainingTime = remainingTime - duration
                 End If
+                
+                attemptCount = attemptCount + 1 ' Prevent infinite loop
             Loop
         End If
         currentDate = currentDate + 1
@@ -118,7 +123,7 @@ Sub AddFixedTask(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Intege
 End Sub
 
 ' Function to get available random time slot
-Function GetAvailableTime(usedTimes As Object) As Date
+Function GetAvailableTime(usedTimes As Object, attemptCount As Integer) As Date
     Dim timeStart As Date
     Dim randomHour As Integer, randomMinute As Integer, randomSecond As Integer
     Dim formattedTime As String
@@ -129,6 +134,9 @@ Function GetAvailableTime(usedTimes As Object) As Date
         randomSecond = Int(Rnd() * 60)
         timeStart = TimeSerial(randomHour, randomMinute, randomSecond)
         formattedTime = Format(timeStart, "hh:mm:ss AM/PM")
+        
+        attemptCount = attemptCount + 1
+        If attemptCount > 20 Then Exit Do ' Prevent infinite loop
     Loop While usedTimes.exists(formattedTime)
     
     GetAvailableTime = timeStart
