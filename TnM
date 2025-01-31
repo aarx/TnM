@@ -5,7 +5,7 @@ Sub GenerateWorkLog()
     Dim weekNum As Integer, rowCounter As Integer
     Dim totalWorkTime As Double
     Dim fixedTasks As Object, usedTimeSlots As Object
-    
+
     ' Define Sheets
     On Error Resume Next
     Set ws = ThisWorkbook.Sheets("WorkLog")
