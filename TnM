@@ -63,8 +63,11 @@ Sub GenerateWorkLog()
 
             ' Insert fixed tasks
             Dim taskKey As Variant
+            Dim fixedStart As Date, fixedStop As Date
             For Each taskKey In fixedTasks.keys
-                Call AddTask(ws, rowCounter, weekNum, currentDate, CStr(taskKey), fixedTasks(taskKey)(0), fixedTasks(taskKey)(1), usedTimeSlots, totalWorkTime)
+                fixedStart = fixedTasks(taskKey)(0)
+                fixedStop = fixedTasks(taskKey)(1)
+                Call AddTask(ws, rowCounter, weekNum, currentDate, taskKey, fixedStart, fixedStop, usedTimeSlots, totalWorkTime)
             Next taskKey
             
             ' Add "Perim" only on Tuesday
