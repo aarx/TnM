@@ -4,9 +4,10 @@ Sub GenerateWorkLog()
     Dim startDate As Date, endDate As Date
     Dim currentDate As Date, weekNum As Integer
     Dim rowCounter As Integer
-    Dim usedTimes As Object
-    Dim totalWorkTime As Double, remainingTime As Double
-    
+    Dim totalWorkTime As Double
+    Dim workHours() As Variant
+    Dim i As Integer
+
     ' Define sheets
     On Error Resume Next
     Set ws = ThisWorkbook.Sheets("WorkLog")
@@ -20,15 +21,15 @@ Sub GenerateWorkLog()
     Else
         ws.Cells.Clear ' Clear old data
     End If
-    
+
     ' Get work types from WorkTypes sheet
     workTypes = workTypeSheet.Range("A1:A" & workTypeSheet.Cells(Rows.Count, 1).End(xlUp).Row).Value
-    
+
     ' Ask for the month and year
     Dim monthYear As String
     monthYear = InputBox("Enter the month and year (MM/YYYY):", "Select Month", Format(Date, "MM/YYYY"))
     If monthYear = "" Then Exit Sub ' Exit if canceled
-    
+
     ' Get start and end date for the selected month
     startDate = DateValue("1/" & monthYear)
     endDate = DateAdd("m", 1, startDate) - 1
@@ -37,104 +38,109 @@ Sub GenerateWorkLog()
     ws.Range("A1:G1").Value = Array("Week", "Date", "Work Description", "Status", "Time Start", "Time Stop", "Time Spent")
     rowCounter = 2
 
+    ' Define fixed activities (time in seconds since midnight)
+    Dim fixedTasks As Object
+    Set fixedTasks = CreateObject("Scripting.Dictionary")
+    fixedTasks.Add "Reading Emails", Array(54000, 55800)  ' 3:00 PM - 3:30 PM
+    fixedTasks.Add "G Team Call", Array(64800, 66600)      ' 6:00 PM - 6:30 PM
+    fixedTasks.Add "T TC", Array(75600, 77400)            ' 9:00 PM - 9:30 PM
+    fixedTasks.Add "Perim", Array(68400, 70200)           ' 7:00 PM - 7:30 PM (Tuesdays only)
+
     ' Loop through the month (5 days a week)
     currentDate = startDate
     Do While currentDate <= endDate
         If Weekday(currentDate, vbMonday) <= 5 Then ' Only Monday to Friday
             weekNum = Application.WorksheetFunction.RoundUp(Day(currentDate) / 7, 0) ' Calculate week number
-            
-            Set usedTimes = CreateObject("Scripting.Dictionary")
-            totalWorkTime = 0
-            
-            ' Add recurring tasks
-            Call AddFixedTask(ws, rowCounter, weekNum, currentDate, "Reading Emails", "3:00:00 PM", "3:30:00 PM", usedTimes, totalWorkTime)
-            Call AddFixedTask(ws, rowCounter, weekNum, currentDate, "G Team Call", "6:00:00 PM", "6:30:00 PM", usedTimes, totalWorkTime)
-            Call AddFixedTask(ws, rowCounter, weekNum, currentDate, "T TC", "9:00:00 PM", "9:30:00 PM", usedTimes, totalWorkTime)
-            If Weekday(currentDate, vbMonday) = 2 Then ' Tuesday check
-                Call AddFixedTask(ws, rowCounter, weekNum, currentDate, "Perim", "7:00:00 PM", "7:30:00 PM", usedTimes, totalWorkTime)
-            End If
 
-            ' Calculate remaining time to fill 8 hours
-            remainingTime = (8 / 24) - totalWorkTime ' Convert 8 hours to fraction of a day
-            
-            ' Generate random tasks until total time reaches 8 hours
-            Call FillRemainingTasks(ws, rowCounter, weekNum, currentDate, workTypes, usedTimes, remainingTime)
+            ' Define working hours from 3 PM to 12 AM
+            workHours = GenerateWorkSlots(54000, 86400, fixedTasks, currentDate) ' Generate available slots
+            totalWorkTime = 0
+
+            ' Assign fixed tasks first
+            For Each key In fixedTasks.Keys
+                If key = "Perim" And Weekday(currentDate, vbMonday) <> 2 Then GoTo SkipTask ' Perim only on Tuesdays
+                ws.Cells(rowCounter, 1).Value = weekNum
+                ws.Cells(rowCounter, 2).Value = currentDate
+                ws.Cells(rowCounter, 3).Value = key
+                ws.Cells(rowCounter, 4).Value = "Ongoing"
+                ws.Cells(rowCounter, 5).Value = Format(TimeSerial(0, 0, fixedTasks(key)(0)), "hh:mm:ss AM/PM")
+                ws.Cells(rowCounter, 6).Value = Format(TimeSerial(0, 0, fixedTasks(key)(1)), "hh:mm:ss AM/PM")
+                ws.Cells(rowCounter, 7).Value = Format((fixedTasks(key)(1) - fixedTasks(key)(0)) / 86400, "[h]:mm:ss")
+                totalWorkTime = totalWorkTime + ((fixedTasks(key)(1) - fixedTasks(key)(0)) / 86400)
+                rowCounter = rowCounter + 1
+SkipTask:
+            Next key
+
+            ' Assign random tasks to fill 8 hours
+            i = 0
+            Do While totalWorkTime < (8 / 24) And i < UBound(workHours, 1)
+                Dim workType As String
+                Dim timeStart As Date, timeStop As Date, duration As Double
+                
+                workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
+                timeStart = TimeSerial(0, 0, workHours(i, 0))
+                timeStop = TimeSerial(0, 0, workHours(i, 1))
+                duration = (workHours(i, 1) - workHours(i, 0)) / 86400
+                
+                ws.Cells(rowCounter, 1).Value = weekNum
+                ws.Cells(rowCounter, 2).Value = currentDate
+                ws.Cells(rowCounter, 3).Value = workType
+                ws.Cells(rowCounter, 4).Value = "Ongoing"
+                ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
+                ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
+                ws.Cells(rowCounter, 7).Value = Format(duration, "[h]:mm:ss")
+
+                totalWorkTime = totalWorkTime + duration
+                rowCounter = rowCounter + 1
+                i = i + 1
+            Loop
         End If
         currentDate = currentDate + 1
     Loop
 
     ' Format time columns to hh:mm:ss
-    ws.Columns("E:G").NumberFormat = "hh:mm:ss"
-    
-    ' Autofit columns
+    ws.Columns("E:G").NumberFormat = "hh:mm:ss AM/PM"
     ws.Columns("A:G").AutoFit
-    
+
     MsgBox "Work log generated for " & monthYear & "!", vbInformation, "Success"
 End Sub
 
-' Subroutine to add fixed tasks
-Sub AddFixedTask(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Integer, currentDate As Date, workType As String, startTime As String, stopTime As String, usedTimes As Object, ByRef totalWorkTime As Double)
-    Dim timeStart As Date, timeStop As Date, timeSpent As Double
-    timeStart = TimeValue(startTime)
-    timeStop = TimeValue(stopTime)
-    timeSpent = timeStop - timeStart
-    
-    ws.Cells(rowCounter, 1).Value = weekNum
-    ws.Cells(rowCounter, 2).Value = currentDate
-    ws.Cells(rowCounter, 3).Value = workType
-    ws.Cells(rowCounter, 4).Value = "Ongoing"
-    ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
-    ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
-    ws.Cells(rowCounter, 7).Value = Format(timeSpent, "[h]:mm:ss")
-    
-    usedTimes.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
-    totalWorkTime = totalWorkTime + timeSpent
-    rowCounter = rowCounter + 1
-End Sub
+' Generate non-overlapping random work slots
+Function GenerateWorkSlots(startSec As Double, endSec As Double, fixedTasks As Object, currentDate As Date) As Variant
+    Dim workSlots() As Variant
+    Dim i As Integer, slotStart As Double, slotEnd As Double, duration As Double
+    Dim availableSlots As Object
+    Set availableSlots = CreateObject("Scripting.Dictionary")
 
-' Subroutine to fill remaining tasks
-Sub FillRemainingTasks(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Integer, currentDate As Date, workTypes As Variant, usedTimes As Object, remainingTime As Double)
-    Dim timeStart As Date, timeStop As Date, duration As Double
-    Dim workType As String
-    Dim formattedTime As String
-
-    ' Ensure workTypes is not empty
-    If UBound(workTypes, 1) < 1 Then Exit Sub
-
-    Do While remainingTime > 0
-        workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes, 1)), 1)
-        timeStart = GetAvailableTime(usedTimes)
-        duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
-        timeStop = timeStart + duration
+    slotStart = startSec
+    While slotStart < endSec
+        ' Check if slot overlaps with a fixed task
+        Dim skip As Boolean
+        skip = False
+        For Each key In fixedTasks.Keys
+            If key = "Perim" And Weekday(currentDate, vbMonday) <> 2 Then GoTo SkipCheck ' Ignore Perim if not Tuesday
+            If slotStart >= fixedTasks(key)(0) And slotStart < fixedTasks(key)(1) Then skip = True: Exit For
+SkipCheck:
+        Next key
         
-        ' Ensure stop time is within working hours
-        If timeStop <= TimeValue("12:00:00 AM") Then
-            usedTimes.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
-            
-            ' Fill row
-            ws.Cells(rowCounter, 1).Value = weekNum
-            ws.Cells(rowCounter, 2).Value = currentDate
-            ws.Cells(rowCounter, 3).Value = workType
-            ws.Cells(rowCounter, 4).Value = "Ongoing"
-            ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
-            ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
-            ws.Cells(rowCounter, 7).Value = Format(timeStop - timeStart, "[h]:mm:ss")
-            
-            rowCounter = rowCounter + 1
-            remainingTime = remainingTime - duration
+        If Not skip Then
+            duration = Application.WorksheetFunction.RandBetween(30, 120) * 60 ' 30-120 mins in seconds
+            slotEnd = slotStart + duration
+            If slotEnd <= endSec Then
+                availableSlots.Add CStr(slotStart), Array(slotStart, slotEnd)
+            End If
         End If
-    Loop
-End Sub
+        slotStart = slotEnd + Application.WorksheetFunction.RandBetween(5, 30) * 60 ' Small gap
+    Wend
 
-' Function to get available random time slot
-Function GetAvailableTime(usedTimes As Object) As Date
-    Dim timeStart As Date
-    Dim formattedTime As String
-    
-    Do
-        timeStart = TimeSerial(15 + Int(Rnd() * 9), Int(Rnd() * 60), Int(Rnd() * 60)) ' Random between 3 PM and 11 PM
-        formattedTime = Format(timeStart, "hh:mm:ss AM/PM")
-    Loop Until Not usedTimes.exists(formattedTime)
-    
-    GetAvailableTime = timeStart
+    ' Convert dictionary to array
+    ReDim workSlots(availableSlots.Count - 1, 1)
+    i = 0
+    For Each key In availableSlots.Keys
+        workSlots(i, 0) = availableSlots(key)(0)
+        workSlots(i, 1) = availableSlots(key)(1)
+        i = i + 1
+    Next key
+
+    GenerateWorkSlots = workSlots
 End Function
