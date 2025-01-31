@@ -48,8 +48,8 @@ Sub GenerateWorkLog()
     fixedTasks.Add "Reading Emails", Array(TimeValue("15:00:00"), TimeValue("15:30:00"))
     fixedTasks.Add "G Team Call", Array(TimeValue("18:00:00"), TimeValue("18:30:00"))
     fixedTasks.Add "T TC", Array(TimeValue("21:00:00"), TimeValue("21:30:00"))
-    
-    ' Add "Perim" task only on Tuesdays
+
+    ' Perim task for Tuesdays
     Dim perimTime() As Date
     perimTime = Array(TimeValue("19:00:00"), TimeValue("19:30:00"))
 
@@ -62,10 +62,10 @@ Sub GenerateWorkLog()
             Set usedTimeSlots = CreateObject("Scripting.Dictionary")
 
             ' Insert fixed tasks
-            Dim key As Variant
-            For Each key In fixedTasks.keys
-                Call AddTask(ws, rowCounter, weekNum, currentDate, key, fixedTasks(key)(0), fixedTasks(key)(1), usedTimeSlots, totalWorkTime)
-            Next key
+            Dim taskKey As Variant
+            For Each taskKey In fixedTasks.keys
+                Call AddTask(ws, rowCounter, weekNum, currentDate, CStr(taskKey), fixedTasks(taskKey)(0), fixedTasks(taskKey)(1), usedTimeSlots, totalWorkTime)
+            Next taskKey
             
             ' Add "Perim" only on Tuesday
             If Weekday(currentDate, vbMonday) = 2 Then
