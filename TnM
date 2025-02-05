@@ -1,140 +1,110 @@
-Sub GenerateWorkLog()
-    Dim ws As Worksheet, workTypeSheet As Worksheet
-    Dim workTypes() As String
-    Dim startDate As Date, endDate As Date, currentDate As Date
-    Dim weekNum As Integer, rowCounter As Integer
-    Dim totalWorkTime As Double
-    Dim fixedTasks As Object, usedTimeSlots As Object
-
-    ' Define Sheets
-    On Error Resume Next
-    Set ws = ThisWorkbook.Sheets("WorkLog")
-    Set workTypeSheet = ThisWorkbook.Sheets("WorkTypes")
-    On Error GoTo 0
-    
-    ' Create WorkLog sheet if it doesn't exist
-    If ws Is Nothing Then
-        Set ws = ThisWorkbook.Sheets.Add
-        ws.Name = "WorkLog"
-    Else
-        ws.Cells.Clear ' Clear old data
-    End If
-
-    ' Read work types from WorkTypes sheet
-    Dim lastRow As Integer
-    lastRow = workTypeSheet.Cells(Rows.Count, 1).End(xlUp).Row
-    ReDim workTypes(1 To lastRow)
-    
-    Dim i As Integer
-    For i = 1 To lastRow
-        workTypes(i) = workTypeSheet.Cells(i, 1).Value
-    Next i
-
-    ' Ask for the month and year
-    Dim monthYear As String
-    monthYear = InputBox("Enter the month and year (MM/YYYY):", "Select Month", Format(Date, "MM/YYYY"))
-    If monthYear = "" Then Exit Sub ' Exit if canceled
-    
-    ' Get start and end dates for the selected month
-    startDate = DateValue("1/" & monthYear)
-    endDate = DateAdd("m", 1, startDate) - 1
-
-    ' Add Headers
-    ws.Range("A1:G1").Value = Array("Week", "Date", "Work Description", "Status", "Time Start", "Time Stop", "Time Spent")
-    rowCounter = 2
-    
-    ' Define fixed tasks
-    Set fixedTasks = CreateObject("Scripting.Dictionary")
-    fixedTasks.Add "Reading Emails", Array(TimeValue("15:00:00"), TimeValue("15:30:00"))
-    fixedTasks.Add "G Team Call", Array(TimeValue("18:00:00"), TimeValue("18:30:00"))
-    fixedTasks.Add "T TC", Array(TimeValue("21:00:00"), TimeValue("21:30:00"))
-
-    ' Perim task for Tuesdays
-    Dim perimTime() As Date
-    perimTime = Array(TimeValue("19:00:00"), TimeValue("19:30:00"))
-
-    ' Loop through each workday
-    currentDate = startDate
-    Do While currentDate <= endDate
-        If Weekday(currentDate, vbMonday) <= 5 Then ' Only Monday to Friday
-            weekNum = Application.WorksheetFunction.RoundUp(Day(currentDate) / 7, 0)
-            totalWorkTime = 0
-            Set usedTimeSlots = CreateObject("Scripting.Dictionary")
-
-            ' Insert fixed tasks
-            Dim taskKey As Variant
-            Dim fixedStart As Date, fixedStop As Date
-            For Each taskKey In fixedTasks.keys
-                fixedStart = fixedTasks(taskKey)(0)
-                fixedStop = fixedTasks(taskKey)(1)
-                Call AddTask(ws, rowCounter, weekNum, currentDate, taskKey, fixedStart, fixedStop, usedTimeSlots, totalWorkTime)
-            Next taskKey
-            
-            ' Add "Perim" only on Tuesday
-            If Weekday(currentDate, vbMonday) = 2 Then
-                Call AddTask(ws, rowCounter, weekNum, currentDate, "Perim", perimTime(0), perimTime(1), usedTimeSlots, totalWorkTime)
-            End If
-            
-            ' Fill remaining time up to 8 hours
-            Call FillRandomTasks(ws, rowCounter, weekNum, currentDate, workTypes, usedTimeSlots, totalWorkTime)
-        End If
-        currentDate = currentDate + 1
-    Loop
-
-    ' Format Time Columns
-    ws.Columns("E:G").NumberFormat = "hh:mm:ss"
-    ws.Columns("A:G").AutoFit
-
-    MsgBox "Work log generated for " & monthYear & "!", vbInformation, "Success"
-End Sub
-
-' Subroutine to add a task
-Sub AddTask(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Integer, taskDate As Date, workType As String, timeStart As Date, timeStop As Date, usedTimeSlots As Object, ByRef totalWorkTime As Double)
+Sub FillMonthlyTracker()
+    Dim wsTasks As Worksheet
+    Dim wsTracker As Worksheet
+    Dim monthInput As String
+    Dim taskList As Range
+    Dim task As Range
+    Dim startTime As Date
+    Dim endTime As Date
     Dim timeSpent As Double
-    timeSpent = timeStop - timeStart
+    Dim currentDate As Date
+    Dim weekOfMonth As Long
+    Dim lastRow As Long
+    Dim taskIndex As Integer
+    Dim randomDuration As Long
+    Dim randomDelayMinutes As Long
+    Dim randomDelaySeconds As Long
+    Dim randomStartMinute As Long
+    Dim randomStartSecond As Long
+    Dim randomEndMinute As Long
+    Dim randomEndSecond As Long
     
-    ws.Cells(rowCounter, 1).Value = weekNum
-    ws.Cells(rowCounter, 2).Value = taskDate
-    ws.Cells(rowCounter, 3).Value = workType
-    ws.Cells(rowCounter, 4).Value = "Ongoing"
-    ws.Cells(rowCounter, 5).Value = Format(timeStart, "hh:mm:ss AM/PM")
-    ws.Cells(rowCounter, 6).Value = Format(timeStop, "hh:mm:ss AM/PM")
-    ws.Cells(rowCounter, 7).Value = Format(timeSpent, "[h]:mm:ss")
+    ' Ask for the month
+    monthInput = InputBox("Enter the month you are filling this for (e.g., January):")
     
-    usedTimeSlots.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
-    totalWorkTime = totalWorkTime + timeSpent
-    rowCounter = rowCounter + 1
-End Sub
-
-' Subroutine to fill remaining tasks randomly
-Sub FillRandomTasks(ws As Worksheet, ByRef rowCounter As Integer, weekNum As Integer, taskDate As Date, workTypes() As String, usedTimeSlots As Object, ByRef totalWorkTime As Double)
-    Dim timeStart As Date, timeStop As Date, duration As Double
-    Dim workType As String
-    Dim formattedTime As String
+    ' Set references to the Tasks and Tracker worksheets
+    Set wsTasks = ThisWorkbook.Sheets("Tasks")
+    Set wsTracker = ThisWorkbook.Sheets("Tracker")
     
-    Do While totalWorkTime < (8 / 24) ' 8 hours converted to fraction of a day
-        workType = workTypes(Application.WorksheetFunction.RandBetween(1, UBound(workTypes)))
-        timeStart = GetAvailableTime(usedTimeSlots)
-        duration = Application.WorksheetFunction.RandBetween(30, 120) / 1440 ' 30 to 120 min
-        timeStop = timeStart + duration
+    ' Clear the previous data in Tracker sheet
+    wsTracker.Cells.ClearContents
+    
+    ' Set up headers in the Tracker sheet
+    wsTracker.Cells(1, 1).Value = "Date"
+    wsTracker.Cells(1, 2).Value = "Week No"
+    wsTracker.Cells(1, 3).Value = "Task"
+    wsTracker.Cells(1, 4).Value = "Start Time"
+    wsTracker.Cells(1, 5).Value = "End Time"
+    wsTracker.Cells(1, 6).Value = "Time Spent (Minutes)"
+    wsTracker.Cells(1, 7).Value = "Day" ' New field for Day of the Week
+    
+    ' Define the task list range from the Tasks sheet
+    Set taskList = wsTasks.Range("A2:A" & wsTasks.Cells(wsTasks.Rows.Count, "A").End(xlUp).Row)
+    
+    ' Start with the 1st day of the month
+    currentDate = DateValue("01 " & monthInput & " " & Year(Date))
+    
+    ' Initialize the first start time at 2:00 PM (with random minute and second)
+    randomStartMinute = Int((59 - 0 + 1) * Rnd) ' Random start minute between 0 and 59
+    randomStartSecond = Int((59 - 0 + 1) * Rnd) ' Random start second between 0 and 59
+    
+    startTime = DateAdd("h", 14, currentDate) + TimeValue("00:" & randomStartMinute & ":" & randomStartSecond)
+    
+    ' Loop through each day of the month
+    Do While Month(currentDate) = Month(DateValue("01 " & monthInput & " " & Year(Date)))
+        ' Determine the week number of the month
+        weekOfMonth = Application.WorksheetFunction.WeekNum(currentDate, 2) - Application.WorksheetFunction.WeekNum(DateSerial(Year(currentDate), Month(currentDate), 1), 2) + 1
         
-        ' Ensure stop time is within working hours (3 PM - 12 AM)
-        If timeStop <= TimeValue("23:59:59") Then
-            usedTimeSlots.Add Format(timeStart, "hh:mm:ss AM/PM"), timeStop
-            Call AddTask(ws, rowCounter, weekNum, taskDate, workType, timeStart, timeStop, usedTimeSlots, totalWorkTime)
-        End If
+        ' Loop through tasks and fill in data
+        For taskIndex = 1 To taskList.Count
+            ' Get a random task from the list
+            Set task = taskList.Cells(taskIndex)
+            
+            ' Generate a random task duration between 45 to 90 minutes (random duration)
+            randomDuration = Int((90 - 45 + 1) * Rnd + 45) ' Duration in minutes between 45 and 90 minutes
+            
+            ' Generate a random seconds value for end time (different from start time)
+            randomEndMinute = Int((59 - 0 + 1) * Rnd) ' Random minute for end time
+            randomEndSecond = Int((59 - 0 + 1) * Rnd) ' Random second for end time
+            
+            ' Calculate end time by adding random duration
+            endTime = DateAdd("n", randomDuration, startTime)
+            endTime = DateAdd("n", randomEndMinute, endTime) ' Add random minutes to end time
+            endTime = DateAdd("s", randomEndSecond, endTime) ' Add random seconds to end time
+            
+            ' Time spent in minutes (this is now correctly calculated without fractions)
+            timeSpent = (endTime - startTime) * 1440 ' Convert time difference to minutes
+            
+            ' Find the next available row in the Tracker sheet
+            lastRow = wsTracker.Cells(wsTracker.Rows.Count, "A").End(xlUp).Row + 1
+            
+            ' Fill in the details in the Tracker sheet
+            wsTracker.Cells(lastRow, 1).Value = currentDate
+            wsTracker.Cells(lastRow, 2).Value = weekOfMonth
+            wsTracker.Cells(lastRow, 3).Value = task.Value
+            wsTracker.Cells(lastRow, 4).Value = Format(startTime, "hh:mm:ss AM/PM")
+            wsTracker.Cells(lastRow, 5).Value = Format(endTime, "hh:mm:ss AM/PM")
+            
+            ' Fill in time spent (format as number for minutes)
+            wsTracker.Cells(lastRow, 6).Value = timeSpent
+            
+            ' Fill in the day of the week
+            wsTracker.Cells(lastRow, 7).Value = Format(currentDate, "dddd")
+            
+            ' If end time exceeds 11:00 PM, move to next day at 2:00 PM
+            If endTime >= DateAdd("h", 23, currentDate) Then
+                currentDate = currentDate + 1 ' Move to the next day
+                startTime = DateAdd("h", 14, currentDate) + TimeValue("00:00:00") ' Start over at 2:00 PM
+            Else
+                ' Add a random delay (between 1 to 10 minutes) to the end time before the next task starts
+                randomDelayMinutes = Int((10 - 1 + 1) * Rnd + 1) ' Random delay in minutes between 1 and 10 minutes
+                randomDelaySeconds = Int((59 - 0 + 1) * Rnd + 0) ' Random delay in seconds between 0 and 59 seconds
+                
+                ' Add the random delay to the previous end time
+                startTime = DateAdd("n", randomDelayMinutes, endTime)
+                startTime = DateAdd("s", randomDelaySeconds, startTime)
+            End If
+        Next taskIndex
     Loop
 End Sub
 
-' Function to get an available time slot
-Function GetAvailableTime(usedTimeSlots As Object) As Date
-    Dim timeStart As Date
-    Dim formattedTime As String
-    
-    Do
-        timeStart = TimeSerial(15 + Int(Rnd() * 9), Int(Rnd() * 60), Int(Rnd() * 60)) ' Random between 3 PM - 11 PM
-        formattedTime = Format(timeStart, "hh:mm:ss AM/PM")
-    Loop Until Not usedTimeSlots.exists(formattedTime)
-    
-    GetAvailableTime = timeStart
-End Function
