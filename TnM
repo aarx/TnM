@@ -36,7 +36,6 @@ Sub FillMonthlyTracker()
     wsTracker.Cells(1, 4).Value = "Start Time"
     wsTracker.Cells(1, 5).Value = "End Time"
     wsTracker.Cells(1, 6).Value = "Time Spent (Minutes)"
-    wsTracker.Cells(1, 7).Value = "Day" ' New field for Day of the Week
     
     ' Define the task list range from the Tasks sheet
     Set taskList = wsTasks.Range("A2:A" & wsTasks.Cells(wsTasks.Rows.Count, "A").End(xlUp).Row)
@@ -88,9 +87,6 @@ Sub FillMonthlyTracker()
             ' Fill in time spent (format as number for minutes)
             wsTracker.Cells(lastRow, 6).Value = timeSpent
             
-            ' Fill in the day of the week
-            wsTracker.Cells(lastRow, 7).Value = Format(currentDate, "dddd")
-            
             ' If end time exceeds 11:00 PM, move to next day at 2:00 PM
             If endTime >= DateAdd("h", 23, currentDate) Then
                 currentDate = currentDate + 1 ' Move to the next day
@@ -107,4 +103,3 @@ Sub FillMonthlyTracker()
         Next taskIndex
     Loop
 End Sub
-
